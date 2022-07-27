@@ -12,7 +12,7 @@ class MainActivity : AppCompatActivity() {
         supportActionBar?.hide()
         
         val transaction = supportFragmentManager.beginTransaction()
-        transaction.add(R.id.fragment_container, WeatherPageFragment.newInstance("화창",15.2))
+        transaction.add(R.id.fragment_container, WeatherPageFragment.newInstance(37.58,126.98))
         transaction.commit()
     }
 }
