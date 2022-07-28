@@ -32,8 +32,8 @@ class DustPageFragment : Fragment() {
         val pm25 : Int
     )
 
-    class MyDeserializer : StdDeserializer<DustPageFragment.OpenDustAPIJSONResponse>(
-        DustPageFragment.OpenDustAPIJSONResponse::class.java
+    class MyDeserializer : StdDeserializer<OpenDustAPIJSONResponse>(
+        OpenDustAPIJSONResponse::class.java
     ) {
         override fun deserialize(
             p: JsonParser?,
@@ -82,17 +82,46 @@ class DustPageFragment : Fragment() {
                 var data = mapper?.readValue<OpenDustAPIJSONResponse>(result)
                 val pm10 = data.pm10
                 val pm25 = data.pm25
-                ultraTemperatureText.text = pm10.toString()
-                temperatureText.text = pm25.toString()
+                ultraTemperatureText.text = pm25.toString()
+                temperatureText.text = pm10.toString()
+
+                if(pm25!=null) {
+                    ultraStatusText.text = if (pm25 <= 50) {
+                        dustImage.setImageResource(R.drawable.good)
+                        "좋음"
+                    }
+                    else if (pm25 <= 150) {
+                        dustImage.setImageResource(R.drawable.normal)
+                        "보통"
+                    }
+                    else if (pm25 <= 300) {
+                        dustImage.setImageResource(R.drawable.bad)
+                        "나쁨"
+                    }
+                    else {
+                        dustImage.setImageResource(R.drawable.very_bad)
+                        "매우 나쁨"
+                    }
+                }
+
+                ultraStatusText.text = ultraStatusText.text.toString() + " (초미세먼지)"
 
                 if(pm10!=null) {
-                    ultraStatusText.text = if (pm10 <= 50) {
-                        "매우 좋음"
+                    statusText.text = if (pm10 <= 50) {
+                        "좋음"
                     }
-                    else if (pm10 <= 150) "좋음"
-                    else if (pm10 <= 200) "보통"
-                    else "나쁨"
+                    else if (pm10 <= 150) {
+                        "보통"
+                    }
+                    else if (pm10 <= 300) {
+                        "나쁨"
+                    }
+                    else {
+                        "매우 나쁨"
+                    }
                 }
+
+                statusText.text = statusText.text.toString() + " (미세먼지)"
 
             }
 
