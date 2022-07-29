@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
@@ -15,35 +16,40 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.google.gson.GsonBuilder
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import java.net.URL
 
-@JsonDeserialize(using= DustCheckerResponseDeserializer::class)
-data class DustCheckResponse(
-    val pm10:Int,
-    val pm25:Int,
-    val pm10Status: String,
-    val pm25Status: String)
+//@JsonDeserialize(using= DustCheckerResponseDeserializer::class)
+//data class DustCheckResponse(
+//    val pm10:Int,
+//    val pm25:Int,
+//    val pm10Status: String,
+//    val pm25Status: String)
 
-class DustCheckerResponseDeserializer :
-    StdDeserializer<DustCheckResponse>(DustCheckResponse::class.java) {
-    override fun deserialize(p: JsonParser?, ctxt: DeserializationContext?): DustCheckResponse {
-        fun checkCategory(aqi : Int): String {
-            return when(aqi) {
-                in (0..100) ->"좋음"
-                in (101..200) -> "보통"
-                in (201..300) -> "나쁨"
-                else -> "매우 나쁨"
-            }
-        }
-
-        var node = p?.codec?.readTree<JsonNode>(p)
-        val pm10 = node?.get("data")?.get("iaqi")?.get("pm10")?.get("v")?.asInt()
-        val pm25 = node?.get("data")?.get("iaqi")?.get("pm25")?.get("v")?.asInt()
-
-        return DustCheckResponse(pm10!!, pm25!!, checkCategory(pm10), checkCategory(pm25))
-    }
-
-}
+//class DustCheckerResponseDeserializer :
+//    StdDeserializer<DustCheckResponse>(DustCheckResponse::class.java) {
+//    override fun deserialize(p: JsonParser?, ctxt: DeserializationContext?): DustCheckResponse {
+//        fun checkCategory(aqi : Int): String {
+//            return when(aqi) {
+//                in (0..100) ->"좋음"
+//                in (101..200) -> "보통"
+//                in (201..300) -> "나쁨"
+//                else -> "매우 나쁨"
+//            }
+//        }
+//
+//        var node = p?.codec?.readTree<JsonNode>(p)
+//        val pm10 = node?.get("data")?.get("iaqi")?.get("pm10")?.get("v")?.asInt()
+//        val pm25 = node?.get("data")?.get("iaqi")?.get("pm25")?.get("v")?.asInt()
+//
+//        return DustCheckResponse(pm10!!, pm25!!, checkCategory(pm10), checkCategory(pm25))
+//    }
+//}
 
 class DustStudyFragment : Fragment() {
 
@@ -75,23 +81,36 @@ class DustStudyFragment : Fragment() {
 
         val lat = arguments?.getDouble("lat")
         val lon = arguments?.getDouble("lon")
-        val url = "http://api.waqi.info/feed/geo:$lat;$lon/?token=$API_TOKEN"
+//        val url = "http://api.waqi.info/feed/geo:$lat;$lon/?token=$API_TOKEN"
 
-        val mapper = jacksonObjectMapper()
+        val retrofit = Retrofit.Builder()
+            .baseUrl("http://api.waqi.info")
+            .addConverterFactory(
+                GsonConverterFactory.create(
+                    GsonBuilder().registerTypeAdapter(
+                        DustCheckResponseGSON::class.java,
+                        DustCheckerResponseDeserializerGSON()
+                    ).create()
+                )
+            )
+            .build()
 
-        APICall(object : APICall.APICallback {
-            override fun onComplete(result: String) {
-                Log.d("my_tag", result)
+        val apiService = retrofit.create(DustAPIService::class.java)
+        val apiCallForData = apiService.getDustStatusInfo(lat!!, lon!!, API_TOKEN)
+        apiCallForData.enqueue(object : Callback<DustCheckResponseGSON> {
+            override fun onResponse(
+                call: Call<DustCheckResponseGSON>,
+                response: Response<DustCheckResponseGSON>
+            ) {
+                val data = response.body()
+                Log.d("my_tag", data.toString())
 
-                val data = mapper?.readValue<DustCheckResponse>(result)
-                temperatureText.text = data.pm10.toString()+" (미세먼지)"
-                ultraTemperatureText.text = data.pm25.toString()+" (초미세먼지)"
+                ultraTemperatureText.text = data?.pm25.toString()
+                temperatureText.text = data?.pm10.toString()
 
-                val pm10 = data.pm25Status
-                val pm25 = data.pm10Status
-
-                ultraStatusText.text = pm10
-                statusText.text = pm25
+                val pm25 = data?.pm25Status
+                ultraStatusText.text = pm25
+                statusText.text = data?.pm10Status
 
                 when(pm25) {
                     "좋음" -> dustImage.setImageResource(R.drawable.good)
@@ -99,12 +118,42 @@ class DustStudyFragment : Fragment() {
                     "나쁨" -> dustImage.setImageResource(R.drawable.bad)
                     "매우 나쁨" -> dustImage.setImageResource(R.drawable.very_bad)
                 }
-
-
-
-
             }
-        }).execute(URL(url))
+
+            override fun onFailure(call: Call<DustCheckResponseGSON>, t: Throwable) {
+                Toast.makeText(activity, "예외 처리 : ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+
+        })
+
+//        val mapper = jacksonObjectMapper()
+//
+//        APICall(object : APICall.APICallback {
+//            override fun onComplete(result: String) {
+//                Log.d("my_tag", result)
+//
+//                val data = mapper?.readValue<DustCheckResponse>(result)
+//                temperatureText.text = data.pm10.toString()+" (미세먼지)"
+//                ultraTemperatureText.text = data.pm25.toString()+" (초미세먼지)"
+//
+//                val pm10 = data.pm25Status
+//                val pm25 = data.pm10Status
+//
+//                ultraStatusText.text = pm10
+//                statusText.text = pm25
+//
+//                when(pm25) {
+//                    "좋음" -> dustImage.setImageResource(R.drawable.good)
+//                    "보통" -> dustImage.setImageResource(R.drawable.normal)
+//                    "나쁨" -> dustImage.setImageResource(R.drawable.bad)
+//                    "매우 나쁨" -> dustImage.setImageResource(R.drawable.very_bad)
+//                }
+//
+//
+//
+//
+//            }
+//        }).execute(URL(url))
 
     }
 

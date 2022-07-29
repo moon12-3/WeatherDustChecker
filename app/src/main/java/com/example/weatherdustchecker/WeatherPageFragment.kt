@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
@@ -16,6 +17,11 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.w3c.dom.Text
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import java.net.URL
 
 class WeatherPageFragment : Fragment() {
@@ -69,18 +75,24 @@ class WeatherPageFragment : Fragment() {
 
         val lat = arguments?.getDouble("lat")
         val lon = arguments?.getDouble("lon")
-        val url = "http://api.openweathermap.org/data/2.5/weather?units=metric&appid=$APP_ID&lat=$lat&lon=$lon"
 
-        var mapper = jacksonObjectMapper()
+        val retrofit = Retrofit.Builder()
+            .baseUrl("http://api.openweathermap.org")
+            .addConverterFactory(GsonConverterFactory.create()) // 뭐로 역직렬화 할건지 받음
+            .build()
 
-        APICall(object : APICall.APICallback {
-            override fun onComplete(result: String) {
-                Log.d("my_tag", result)
-                var data = mapper?.readValue<OpenWeatherAPIJSONResponse>(result)
+        val apiService = retrofit.create(WeatherAPIService::class.java) // 뭐로 할거임 지정
+        val apiCallForData = apiService.getWeatherStatusInfo(APP_ID, lat!!, lon!!)  // 값 제공
+        apiCallForData.enqueue(object : Callback<OpenWeatherAPIJSONResponseGSON> {
+            override fun onResponse(
+                call: Call<OpenWeatherAPIJSONResponseGSON>,
+                response: Response<OpenWeatherAPIJSONResponseGSON>
+            ) {
+                val data = response.body()
+                Log.d("my_tag", data.toString())
+                temperatureText.text = data?.main?.get("temp")
+                val id = data?.weather?.get(0)?.get("id")
 
-                temperatureText.text = data.temp.toString()
-
-                val id = data.id.toString()
                 if(id != null) {
                     statusText.text = when {
                         id.startsWith("2") -> {
@@ -114,12 +126,13 @@ class WeatherPageFragment : Fragment() {
                         else -> "알 수 없음"
                     }
                 }
-
             }
 
-        }).execute(URL(url))
+            override fun onFailure(call: Call<OpenWeatherAPIJSONResponseGSON>, t: Throwable) {
+                Toast.makeText(activity, "에러 발생 : ${t.message}", Toast.LENGTH_SHORT).show()
+            }
 
-
+        })
     }
 
     companion object {
